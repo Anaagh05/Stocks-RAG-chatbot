@@ -5,6 +5,9 @@ All tunable constants are defined here. Import from this module throughout the p
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Project Root ──────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).parent.resolve()
@@ -17,9 +20,14 @@ FETCH_CACHE_PATH = DATA_DIR / "fetch_cache.json"
 # Ensure directories exist
 CORPUS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── ChromaDB ──────────────────────────────────────────────────────────────────
-CHROMA_PERSIST_DIR  = DATA_DIR / "chroma_db"
-CHROMA_COLLECTION   = "mutual_fund_faq"
+# ── API Keys ──────────────────────────────────────────────────────────────────
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+PINECONE_API_KEY  = os.getenv("PINECONE_API_KEY", "")
+HF_TOKEN          = os.getenv("HF_TOKEN", "")
+COHERE_API_KEY    = os.getenv("COHERE_API_KEY", "")
+
+# ── Pinecone ──────────────────────────────────────────────────────────────────
+PINECONE_INDEX_NAME = "mutual-fund-faq"
 
 # ── Embedding Model ───────────────────────────────────────────────────────────
 # BAAI/bge-small-en-v1.5 — SOTA free local retrieval model

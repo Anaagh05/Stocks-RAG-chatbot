@@ -1,50 +1,55 @@
 import pytest
-from src.retriever import HybridRetriever, RRF_K
+from unittest.mock import MagicMock
+from src.retriever import Retriever, RetrievedChunk
 
-def test_rrf_merge():
-    # Format: (chunk_id, text, metadata)
-    dense_results = [
-        ("chunk_A", "Text A", {"source": "dense"}),  # Rank 1
-        ("chunk_B", "Text B", {"source": "dense"}),  # Rank 2
-        ("chunk_C", "Text C", {"source": "dense"}),  # Rank 3
-    ]
+@pytest.fixture
+def mock_pinecone_and_embedder(mocker):
+    # Mock Embedder
+    mock_embedder_class = mocker.patch("src.retriever.Embedder")
+    mock_embedder_inst = MagicMock()
+    mock_embedder_inst.embed_query.return_value = [0.1, 0.2, 0.3]
+    mock_embedder_class.return_value = mock_embedder_inst
     
-    bm25_results = [
-        ("chunk_B", "Text B", {"source": "bm25"}),   # Rank 1
-        ("chunk_D", "Text D", {"source": "bm25"}),   # Rank 2
-        ("chunk_A", "Text A", {"source": "bm25"}),   # Rank 3
-    ]
+    # Mock Pinecone
+    mock_pinecone_class = mocker.patch("src.retriever.Pinecone")
+    mock_pinecone_inst = MagicMock()
+    mock_index = MagicMock()
     
-    fused = HybridRetriever._rrf_merge(dense_results, bm25_results, top_k=5)
+    mock_index.query.return_value = {
+        "matches": [
+            {
+                "id": "chunk_A",
+                "score": 0.95,
+                "metadata": {"text": "Text A", "source": "test"}
+            },
+            {
+                "id": "chunk_B",
+                "score": 0.85,
+                "metadata": {"text": "Text B", "source": "test"}
+            }
+        ]
+    }
     
-    assert len(fused) == 4
+    mock_pinecone_inst.Index.return_value = mock_index
+    mock_pinecone_class.return_value = mock_pinecone_inst
     
-    # Calculate expected scores
-    # chunk_B: dense rank 2, bm25 rank 1 -> 1/(60+2) + 1/(60+1)
-    # chunk_A: dense rank 1, bm25 rank 3 -> 1/(60+1) + 1/(60+3)
-    # chunk_C: dense rank 3 -> 1/(60+3)
-    # chunk_D: bm25 rank 2 -> 1/(60+2)
-    score_B = 1.0 / (RRF_K + 2) + 1.0 / (RRF_K + 1)
-    score_A = 1.0 / (RRF_K + 1) + 1.0 / (RRF_K + 3)
-    score_D = 1.0 / (RRF_K + 2)
-    score_C = 1.0 / (RRF_K + 3)
-    
-    assert fused[0].chunk_id == "chunk_B"
-    assert fused[1].chunk_id == "chunk_A"
-    assert fused[2].chunk_id == "chunk_D"
-    assert fused[3].chunk_id == "chunk_C"
-    
-    assert abs(fused[0].rrf_score - score_B) < 1e-6
-    assert abs(fused[1].rrf_score - score_A) < 1e-6
+    return mock_embedder_inst, mock_index
 
-def test_rrf_merge_empty_lists():
-    fused = HybridRetriever._rrf_merge([], [], top_k=5)
-    assert len(fused) == 0
-
-def test_rrf_merge_one_sided():
-    dense_results = [("chunk_X", "Text X", {})]
-    fused = HybridRetriever._rrf_merge(dense_results, [], top_k=5)
-    assert len(fused) == 1
-    assert fused[0].chunk_id == "chunk_X"
-    assert fused[0].dense_rank == 1
-    assert fused[0].bm25_rank is None
+def test_pinecone_retrieval(mock_pinecone_and_embedder):
+    _, mock_index = mock_pinecone_and_embedder
+    
+    retriever = Retriever()
+    results = retriever.retrieve("test query", top_k=2)
+    
+    assert len(results) == 2
+    assert results[0].chunk_id == "chunk_A"
+    assert results[0].text == "Text A"
+    assert results[0].pinecone_score == 0.95
+    assert "text" not in results[0].metadata  # Cleaned out
+    
+    mock_index.query.assert_called_once_with(
+        vector=[0.1, 0.2, 0.3],
+        top_k=2,
+        include_values=False,
+        include_metadata=True
+    )

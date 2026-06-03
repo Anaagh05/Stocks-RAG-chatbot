@@ -1,27 +1,18 @@
 """
-src/embedder.py — Embedding Generation + ChromaDB Storage.
-
-Strategy (Phase 1, Section 5):
-- Model:  BAAI/bge-small-en-v1.5  (SOTA free local retrieval model via sentence-transformers)
-- Batch processing: 64 chunks per batch for memory efficiency
-- Asymmetric embedding: document chunks embedded without prefix;
-  query embedding adds a task instruction prefix at search time.
-- ChromaDB: local persistent store with metadata filtering support.
-- Upsert: old embeddings for a fund are deleted before re-ingesting new ones
-  (prevents stale duplicates after the daily scheduler updates a document).
+src/embedder.py — Embedding Generation + Pinecone Storage.
 """
 
 import hashlib
 import logging
 from typing import Any
 
-import chromadb
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
+from pinecone import Pinecone
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
 from config import (
-    CHROMA_COLLECTION,
-    CHROMA_PERSIST_DIR,
+    PINECONE_API_KEY,
+    PINECONE_INDEX_NAME,
+    HF_TOKEN,
     EMBEDDING_BATCH_SIZE,
     EMBEDDING_MODEL,
     QUERY_INSTRUCTION,
@@ -29,140 +20,117 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-
-# ── ChromaDB Client (singleton) ────────────────────────────────────────────────
-
-def _get_chroma_collection() -> Any:
-    """Return (or create) the persistent ChromaDB collection."""
-    client = chromadb.PersistentClient(
-        path=str(CHROMA_PERSIST_DIR),
-        settings=Settings(anonymized_telemetry=False),
-    )
-    collection = client.get_or_create_collection(
-        name=CHROMA_COLLECTION,
-        metadata={"hnsw:space": "cosine"},   # cosine similarity
-    )
-    return collection
-
-
 # ── Chunk ID Generator ─────────────────────────────────────────────────────────
 
 def _chunk_id(text: str, metadata: dict) -> str:
-    """
-    Generate a stable, deterministic ID for a chunk based on its content
-    and source metadata. This allows safe upserts without duplicate entries.
-    """
     raw = f"{metadata['source_url']}|{metadata['section_name']}|{text[:120]}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
-
 
 # ── Embedder ───────────────────────────────────────────────────────────────────
 
 class Embedder:
     """
-    Loads BAAI/bge-small-en-v1.5, generates embeddings for document chunks,
-    and upserts them into ChromaDB with full metadata.
+    Generates BAAI/bge-small-en-v1.5 embeddings via HF Inference API
+    and upserts them into Pinecone Serverless.
     """
 
     def __init__(self):
-        logger.info(f"[EMBEDDER] Loading model: {EMBEDDING_MODEL}")
-        self.model = SentenceTransformer(EMBEDDING_MODEL)
-        self.collection = _get_chroma_collection()
-        logger.info(f"[EMBEDDER] Connected to ChromaDB collection: {CHROMA_COLLECTION}")
+        logger.info(f"[EMBEDDER] Connecting to Pinecone Index: {PINECONE_INDEX_NAME}")
+        self.pc = Pinecone(api_key=PINECONE_API_KEY)
+        
+        # Initialize Pinecone Index
+        # Ensure the index exists before running this. (Needs to be created in Pinecone UI or via script)
+        try:
+            self.index = self.pc.Index(PINECONE_INDEX_NAME)
+        except Exception as e:
+            logger.error(f"[EMBEDDER] Failed to connect to Pinecone index: {e}")
+            self.index = None
 
-    # ── Document Chunk Embedding (no prefix — asymmetric) ──────────────────────
+        logger.info(f"[EMBEDDER] Initializing HuggingFace Embeddings: {EMBEDDING_MODEL}")
+        self.embeddings_model = HuggingFaceEndpointEmbeddings(
+            model=EMBEDDING_MODEL,
+            huggingfacehub_api_token=HF_TOKEN,
+        )
 
     def embed_and_store(self, chunks: list[dict], fund_name: str) -> int:
         """
-        Embed all chunks for a fund and upsert into ChromaDB.
-
-        Steps:
-        1. Delete all existing embeddings for `fund_name` (stale data removal).
-        2. Batch-embed chunk texts using BAAI/bge-small-en-v1.5.
-        3. Upsert (id, embedding, text, metadata) into ChromaDB.
-
-        Returns the number of chunks stored.
+        Embed all chunks for a fund and upsert into Pinecone.
         """
         if not chunks:
             logger.warning(f"[EMBEDDER] No chunks to embed for {fund_name}. Skipping.")
             return 0
+        if self.index is None:
+            logger.error("[EMBEDDER] No Pinecone index available. Skipping.")
+            return 0
 
-        # ── Step 1: Delete stale embeddings for this fund ──────────────────────
+        # Step 1: Delete stale embeddings
         self._delete_fund_embeddings(fund_name)
 
-        # ── Step 2: Batch-embed texts ──────────────────────────────────────────
-        texts     = [c["text"] for c in chunks]
+        # Step 2: Batch-embed texts
+        texts = [c["text"] for c in chunks]
         metadatas = [c["metadata"] for c in chunks]
-        ids       = [_chunk_id(c["text"], c["metadata"]) for c in chunks]
+        
+        ids = [_chunk_id(c["text"], c["metadata"]) for c in chunks]
 
-        all_embeddings = []
+        # Step 3: Embed and Upsert
+        # We process in batches to avoid HF API limits or Pinecone payload limits.
+        total_upserted = 0
         for batch_start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
-            batch = texts[batch_start : batch_start + EMBEDDING_BATCH_SIZE]
-            # Document chunks: NO instruction prefix (asymmetric embedding)
-            batch_embeddings = self.model.encode(
-                batch,
-                batch_size=EMBEDDING_BATCH_SIZE,
-                show_progress_bar=False,
-                normalize_embeddings=True,   # cosine similarity needs L2-norm
-            ).tolist()
-            all_embeddings.extend(batch_embeddings)
-            logger.debug(
-                f"[EMBEDDER] Embedded batch {batch_start}–{batch_start + len(batch)} "
-                f"for {fund_name}"
-            )
+            batch_texts = texts[batch_start : batch_start + EMBEDDING_BATCH_SIZE]
+            batch_meta = metadatas[batch_start : batch_start + EMBEDDING_BATCH_SIZE]
+            batch_ids = ids[batch_start : batch_start + EMBEDDING_BATCH_SIZE]
 
-        # ── Step 3: Upsert into ChromaDB ───────────────────────────────────────
-        # ChromaDB upsert handles insert-or-replace by ID
-        self.collection.upsert(
-            ids=ids,
-            embeddings=all_embeddings,
-            documents=texts,
-            metadatas=metadatas,
-        )
+            # HF Inference API allows passing a list of strings
+            try:
+                batch_embeddings = self.embeddings_model.embed_documents(batch_texts)
+            except Exception as e:
+                logger.error(f"[EMBEDDER] HF API Embedding failed: {e}")
+                continue
 
-        logger.info(f"[EMBEDDER] Stored {len(chunks)} chunks for {fund_name}.")
-        return len(chunks)
+            # Prepare Pinecone vectors format: list of dicts
+            vectors = []
+            for i in range(len(batch_texts)):
+                # Attach the text chunk to the metadata so we can retrieve it
+                meta = batch_meta[i].copy()
+                meta["text"] = batch_texts[i]
+                vectors.append({
+                    "id": batch_ids[i],
+                    "values": batch_embeddings[i],
+                    "metadata": meta
+                })
 
-    # ── Query Embedding (with instruction prefix) ──────────────────────────────
+            try:
+                self.index.upsert(vectors=vectors)
+                total_upserted += len(vectors)
+                logger.debug(f"[EMBEDDER] Upserted batch of {len(vectors)} chunks.")
+            except Exception as e:
+                logger.error(f"[EMBEDDER] Pinecone upsert failed: {e}")
+
+        logger.info(f"[EMBEDDER] Stored {total_upserted} chunks for {fund_name}.")
+        return total_upserted
 
     def embed_query(self, query: str) -> list[float]:
         """
         Embed a user query using the asymmetric instruction prefix.
-        This is called at retrieval time, NOT during ingestion.
-
-        BGE instruction prefix: improves retrieval relevance significantly.
         """
         prefixed = QUERY_INSTRUCTION + query
-        embedding = self.model.encode(
-            [prefixed],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        return embedding[0].tolist()
-
-    # ── Stale Data Removal ─────────────────────────────────────────────────────
+        return self.embeddings_model.embed_query(prefixed)
 
     def _delete_fund_embeddings(self, fund_name: str) -> None:
         """
-        Delete all existing embeddings tagged with `fund_name` from ChromaDB.
-        Called before re-ingesting a fund whose document has changed.
+        Delete all existing embeddings tagged with `fund_name` from Pinecone.
         """
         try:
-            results = self.collection.get(
-                where={"fund_name": fund_name},
-                include=[],   # only need IDs
-            )
-            stale_ids = results.get("ids", [])
-            if stale_ids:
-                self.collection.delete(ids=stale_ids)
-                logger.info(
-                    f"[EMBEDDER] Deleted {len(stale_ids)} stale chunks for {fund_name}."
-                )
+            # Pinecone serverless supports deleting by metadata
+            self.index.delete(filter={"fund_name": {"$eq": fund_name}})
+            logger.info(f"[EMBEDDER] Deleted stale chunks for {fund_name}.")
         except Exception as e:
             logger.warning(f"[EMBEDDER] Could not delete stale chunks for {fund_name}: {e}")
 
-    # ── Collection Stats ───────────────────────────────────────────────────────
-
     def count(self) -> int:
         """Return total number of chunks currently in the vector store."""
-        return self.collection.count()
+        try:
+            stats = self.index.describe_index_stats()
+            return stats.get("total_vector_count", 0)
+        except Exception:
+            return 0

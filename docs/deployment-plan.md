@@ -1,173 +1,89 @@
-# Deployment Plan: SBI Mutual Fund FAQ Assistant
+# Deployment Plan: SBI Mutual Fund FAQ Assistant (Free Cloud Tier)
 
-This document outlines the step-by-step strategy for deploying the RAG-based chatbot to a production environment. Since the project uses a local LLM (Ollama) and local Vector DB (ChromaDB), it requires a single sufficiently resourced Virtual Machine (VM) rather than complex cloud-managed AI services.
+This document outlines the strategy for deploying the RAG-based chatbot using 100% free cloud services. By leveraging managed APIs (Groq, Pinecone, HuggingFace, Cohere), the backend requires virtually no local RAM, making it perfect for free Serverless and PaaS tiers.
 
----
+## Architecture
 
-## 1. Server Requirements & Provisioning
-
-**Recommended Specs:**
-- **CPU:** 4+ vCPUs
-- **RAM:** 16 GB minimum (8 GB for the OS/Vector DB + 8 GB dedicated to Ollama/Llama 3.1 model weights)
-- **Storage:** 50 GB SSD (Model weights are ~4.7GB, ChromaDB will consume ~1-2GB over time).
-- **OS:** Ubuntu 22.04 LTS (or equivalent Linux distro)
-
-**Cloud Providers:**
-- **AWS:** `t3.xlarge` or `m5.xlarge`
-- **DigitalOcean:** 16GB Memory Droplet
-- **GCP:** `e2-standard-4`
+- **Frontend:** Vercel (Static Hosting)
+- **Backend (API + Scheduler):** Render.com (Web Service / Background Worker)
+- **Vector DB:** Pinecone Serverless (Free Tier)
+- **LLM:** Groq API (Free Tier)
+- **Embeddings:** HuggingFace Inference API (Free Tier)
+- **Re-ranking:** Cohere Rerank API (Free Tier)
 
 ---
 
-## 2. System Dependencies Installation
+## 1. Environment Variables Setup
 
-SSH into the provisioned server and install the core dependencies:
+You will need to generate API keys for the managed services. Create a `.env` file locally for testing, and add these exact keys to your Render environment later.
 
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Python 3.14+ (or use pyenv), Git, and Nginx
-sudo apt install software-properties-common python3-venv git nginx curl -y
-
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull the required LLM model (This will take a few minutes)
-ollama pull llama3.1:8b
+```env
+GROQ_API_KEY=your_groq_key
+PINECONE_API_KEY=your_pinecone_key
+HF_TOKEN=your_huggingface_token
+COHERE_API_KEY=your_cohere_key
 ```
 
 ---
 
-## 3. Application Setup
+## 2. Setting up Pinecone Vector DB
 
-Clone the repository and set up the Python environment:
-
-```bash
-# Clone the repository
-git clone https://github.com/Anaagh05/Stocks-RAG-chatbot.git /var/www/rag-chatbot
-cd /var/www/rag-chatbot
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
+1. Go to [Pinecone](https://www.pinecone.io/) and create a free Serverless index.
+2. **Index Name:** `mutual-fund-faq`
+3. **Dimensions:** `384` (This matches the `BAAI/bge-small-en-v1.5` embeddings)
+4. **Metric:** `cosine`
+5. Generate an API Key and save it.
 
 ---
 
-## 4. Initializing the Data
+## 3. Deploying the Backend on Render.com
 
-Before starting the server, run the ingestion process once manually to populate the vector database with the latest factsheets.
+Render offers a free tier for Web Services, which is perfect for our FastAPI backend.
+
+1. Go to [Render](https://render.com/) and create a new **Web Service**.
+2. Connect your GitHub repository: `Anaagh05/Stocks-RAG-chatbot`.
+3. **Configuration:**
+   - **Environment:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn api:app --host 0.0.0.0 --port $PORT`
+4. **Environment Variables:**
+   - Add `GROQ_API_KEY`, `PINECONE_API_KEY`, `HF_TOKEN`, `COHERE_API_KEY`.
+5. Deploy the Web Service. Render will provide a URL (e.g., `https://rag-backend.onrender.com`).
+
+### Setting up the Scheduler
+
+Render's free tier spins down the web service after 15 minutes of inactivity. For the ingestion scheduler to run daily at 10:00 AM, you have two options:
+- **Option A (Cron Job via Render):** Render offers a "Cron Job" service. You can set the Build Command to `pip install -r requirements.txt` and the Command to `python src/ingest.py` running on a schedule (e.g., `0 10 * * *`).
+- **Option B (GitHub Actions):** Create a GitHub action that runs `python src/ingest.py` daily, injecting the API keys as GitHub Secrets.
+
+---
+
+## 4. Deploying the Frontend on Vercel
+
+Vercel is perfect for the static HTML/JS frontend.
+
+1. In your project, update `static/app.js` to point to your new Render Backend URL instead of `http://localhost:8000`.
+   ```javascript
+   // In static/app.js
+   const API_URL = "https://rag-backend.onrender.com/chat";
+   ```
+2. Go to [Vercel](https://vercel.com/) and create a new project.
+3. Import your GitHub repository.
+4. **Configuration:**
+   - **Framework Preset:** `Other`
+   - **Root Directory:** `static`
+5. Click **Deploy**. Vercel will instantly host your frontend on a fast global CDN.
+
+---
+
+## 5. First-time Data Ingestion
+
+Before users can ask questions, you must populate Pinecone with the mutual fund data.
+
+Run the ingestion script locally from your computer (ensure your `.env` is set up):
 
 ```bash
-# From within the virtual environment
 python src/ingest.py
 ```
 
----
-
-## 5. Setting up Background Services (Systemd)
-
-We need two continuously running background processes: the **FastAPI Server** and the **Ingestion Scheduler**. 
-
-### A. API Server Service
-Create `/etc/systemd/system/rag-api.service`:
-```ini
-[Unit]
-Description=RAG FastAPI Server
-After=network.target ollama.service
-
-[Service]
-User=root
-WorkingDirectory=/var/www/rag-chatbot
-ExecStart=/var/www/rag-chatbot/venv/bin/uvicorn api:app --host 127.0.0.1 --port 8000 --workers 2
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### B. Scheduler Service
-Create `/etc/systemd/system/rag-scheduler.service`:
-```ini
-[Unit]
-Description=RAG Daily Ingestion Scheduler
-After=network.target
-
-[Service]
-User=root
-WorkingDirectory=/var/www/rag-chatbot
-ExecStart=/var/www/rag-chatbot/venv/bin/python scheduler.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start both services:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable rag-api rag-scheduler
-sudo systemctl start rag-api rag-scheduler
-```
-
----
-
-## 6. Nginx Reverse Proxy & SSL
-
-Configure Nginx to expose the FastAPI server to the web securely on port 80/443, leaving port 8000 blocked from the public internet.
-
-Create `/etc/nginx/sites-available/rag-chatbot`:
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com; # Replace with actual domain/IP
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Enable the configuration:
-```bash
-sudo ln -s /etc/nginx/sites-available/rag-chatbot /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-**SSL (Optional but recommended):**
-Install Let's Encrypt Certbot to secure the domain:
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
-```
-
----
-
-## 7. Security & Firewall
-
-Ensure only HTTP, HTTPS, and SSH traffic are allowed.
-
-```bash
-sudo ufw allow 'Nginx Full'
-sudo ufw allow OpenSSH
-sudo ufw enable
-```
-
----
-
-## 8. Maintenance & Monitoring
-
-- **Logs:** 
-  - API Logs: `journalctl -u rag-api -f`
-  - Scheduler Logs: `journalctl -u rag-scheduler -f`
-  - Ollama Logs: `journalctl -u ollama -f`
-- **Data Cleanup:** The `scheduler.py` handles ChromaDB cleanup internally during daily fetch cycles. No manual cron jobs are required.
+This will download the latest PDFs and HTML pages, generate embeddings via HuggingFace, and push the vectors to Pinecone. Once complete, your live deployment on Vercel/Render is ready to answer questions!

@@ -45,7 +45,7 @@ from src.llm import LLMOrchestrator
 from src.output_validator import OutputValidator, ValidationResult
 from src.query_processor import QueryProcessor
 from src.reranker import CrossEncoderReranker, RerankedChunk
-from src.retriever import HybridRetriever
+from src.retriever import Retriever
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ class RAGEngine:
         logger.info("[RAG_ENGINE] Initialising pipeline components...")
         self.scrubber      = PIIScrubber()
         self.query_proc    = QueryProcessor()
-        self.retriever     = HybridRetriever()
+        self.retriever     = Retriever()
         self.reranker      = CrossEncoderReranker()
         self.thresholder   = ConfidenceThresholder()
         self.llm           = LLMOrchestrator()
