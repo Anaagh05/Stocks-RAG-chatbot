@@ -4,7 +4,6 @@ src/embedder.py — Embedding Generation + Pinecone Storage.
 
 import hashlib
 import logging
-from typing import Any
 
 from pinecone import Pinecone
 from langchain_huggingface import HuggingFaceEndpointEmbeddings

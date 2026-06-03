@@ -157,7 +157,6 @@ def chunk_tables(
         if not table_md.strip():
             continue
         # Infer section name from the first data cell of the table (heuristic)
-        first_line = table_md.split("\n")[0]
         section_name = f"Table {i + 1}"
 
         chunks.append({

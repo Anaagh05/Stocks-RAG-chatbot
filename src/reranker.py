@@ -4,7 +4,6 @@ src/reranker.py — Cohere Rerank API (Phase 2, Section 4).
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import cohere
 

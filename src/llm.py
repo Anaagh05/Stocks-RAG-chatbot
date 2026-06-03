@@ -7,7 +7,6 @@ LLM: Llama 3.1 8B served via Groq API.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from groq import Groq
 

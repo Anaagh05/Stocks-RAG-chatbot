@@ -162,7 +162,7 @@ class QueryProcessor:
         if self._is_advisory(scrubbed_query):
             result.is_advisory = True
             result.refusal_message = ADVISORY_REFUSAL
-            logger.info(f"[QUERY_PROC] Advisory query detected. Short-circuiting to refusal.")
+            logger.info("[QUERY_PROC] Advisory query detected. Short-circuiting to refusal.")
             return result  # Early exit — no retrieval performed
 
         # ── Step B: Fund Name Normalization ───────────────────────────────────

@@ -88,7 +88,6 @@ def run_ingestion() -> dict:
         doc_type         = doc_meta["doc_type"]
         local_path       = doc_meta["local_path"]
         publication_date = doc_meta["publication_date"]
-        ingestion_date   = doc_meta["ingestion_date"]
 
         logger.info(f"[INGEST] Processing: {fund_name} ({doc_type})")
 

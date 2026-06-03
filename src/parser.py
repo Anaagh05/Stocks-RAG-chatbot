@@ -14,7 +14,6 @@ Strategy (Phase 1, Section 3):
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 import pdfplumber
 import fitz  # pymupdf

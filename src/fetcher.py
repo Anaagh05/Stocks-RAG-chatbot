@@ -11,7 +11,6 @@ Strategy (Phase 1, Section 2):
 import json
 import logging
 from datetime import date
-from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
