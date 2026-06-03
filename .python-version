@@ -1,0 +1,3 @@
+# .python-version — pins the Python version for tools like pyenv
+# This signals to IDEs and tooling that Python 3.14 is the target interpreter.
+3.14

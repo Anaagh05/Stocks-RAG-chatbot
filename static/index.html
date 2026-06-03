@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SBI Mutual Fund FAQ Assistant</title>
+  <meta name="description" content="Facts-only Q&A assistant for SBI Mutual Fund schemes. Get instant, verified answers from official factsheets, SIDs, KIMs, and FAQ documents." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ── Background orbs ──────────────────────────────────────────────────── -->
+  <div class="bg-orb bg-orb--1" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb--2" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb--3" aria-hidden="true"></div>
+
+  <!-- ── Header ───────────────────────────────────────────────────────────── -->
+  <header class="header" role="banner">
+    <div class="header__inner">
+      <div class="header__brand">
+        <div class="header__logo" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#logoGrad)"/>
+            <path d="M8 20L12 14L16 18L20 10L24 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32">
+                <stop offset="0%" stop-color="#4f7bff"/>
+                <stop offset="100%" stop-color="#7c5cfc"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1 class="header__title">SBI MF Assistant</h1>
+          <p class="header__subtitle">Facts-only · Official Sources</p>
+        </div>
+      </div>
+      <div class="header__status" id="statusBadge" title="Checking server status…">
+        <span class="status-dot status-dot--checking" id="statusDot"></span>
+        <span class="status-label" id="statusLabel">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Disclaimer Bar ───────────────────────────────────────────────────── -->
+  <div class="disclaimer" role="note" aria-label="Disclaimer">
+    <svg class="disclaimer__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span>Facts-only assistant &nbsp;·&nbsp; No investment advice &nbsp;·&nbsp; Always verify with <a href="https://www.sbimf.com" target="_blank" rel="noopener noreferrer">sbimf.com</a></span>
+  </div>
+
+  <!-- ── Main Layout ───────────────────────────────────────────────────────── -->
+  <main class="main" role="main">
+    <div class="chat-shell" id="chatShell">
+
+      <!-- ── Welcome Screen ──────────────────────────────────────────────── -->
+      <section class="welcome" id="welcomeScreen" aria-label="Welcome">
+        <div class="welcome__icon" aria-hidden="true">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="14" fill="url(#wGrad)"/>
+            <path d="M12 30L18 21L24 27L30 15L36 24" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="wGrad" x1="0" y1="0" x2="48" y2="48">
+                <stop offset="0%" stop-color="#4f7bff"/>
+                <stop offset="100%" stop-color="#7c5cfc"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2 class="welcome__title">SBI Mutual Fund FAQ Assistant</h2>
+        <p class="welcome__sub">Instant answers from official factsheets, SIDs, KIMs, and fund documents.</p>
+
+        <div class="quick-starts" role="group" aria-label="Quick-start questions">
+          <p class="quick-starts__label">Try asking</p>
+          <div class="quick-starts__chips">
+            <button class="chip" id="qs1" data-query="What is the exit load of SBI Small Cap Fund?">
+              <svg class="chip__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              What is the exit load of SBI Small Cap Fund?
+            </button>
+            <button class="chip" id="qs2" data-query="Who manages SBI Bluechip Fund?">
+              <svg class="chip__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Who manages SBI Bluechip Fund?
+            </button>
+            <button class="chip" id="qs3" data-query="What is the expense ratio of SBI Contra Fund?">
+              <svg class="chip__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              What is the expense ratio of SBI Contra Fund?
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Chat Feed ───────────────────────────────────────────────────── -->
+      <div class="chat-feed" id="chatFeed" role="log" aria-live="polite" aria-label="Chat messages"></div>
+
+    </div><!-- /.chat-shell -->
+  </main>
+
+  <!-- ── Input Bar ─────────────────────────────────────────────────────────── -->
+  <footer class="input-bar" role="contentinfo">
+    <div class="input-bar__inner">
+      <div class="input-wrap" id="inputWrap">
+        <svg class="input-wrap__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="text"
+          id="queryInput"
+          class="input-wrap__field"
+          placeholder="Ask about any SBI Mutual Fund scheme…"
+          maxlength="500"
+          autocomplete="off"
+          aria-label="Your question"
+        />
+        <span class="input-wrap__counter" id="charCounter">0 / 500</span>
+      </div>
+      <button class="send-btn" id="sendBtn" aria-label="Send question" disabled>
+        <svg class="send-btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

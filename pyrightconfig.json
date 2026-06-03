@@ -1,0 +1,15 @@
+{
+  "executionEnvironments": [{"root": "."}],
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonVersion": "3.14",
+  "include": [
+    "."
+  ],
+  "extraPaths": ["."],
+  "exclude": [
+    "venv",
+    "data",
+    "**/__pycache__"
+  ]
+}
