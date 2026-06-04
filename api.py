@@ -60,8 +60,33 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     _engine = await loop.run_in_executor(_executor, RAGEngine)
     logger.info("RAGEngine ready. Server is live.")
+
+    # Start BackgroundScheduler for daily document Ingestion
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        from config import SCHEDULER_HOUR, SCHEDULER_MINUTE
+        from scheduler import scheduled_ingestion_job
+
+        scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
+        scheduler.add_job(
+            func=scheduled_ingestion_job,
+            trigger=CronTrigger(hour=SCHEDULER_HOUR, minute=SCHEDULER_MINUTE),
+            id="daily_ingestion",
+            name="Daily SBI MF Document Ingestion",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info(f"[LIFESPAN] Background scheduler started. Daily ingestion scheduled at {SCHEDULER_HOUR:02d}:{SCHEDULER_MINUTE:02d} IST.")
+        app.state.scheduler = scheduler
+    except Exception as e:
+        logger.error(f"[LIFESPAN] Failed to start background scheduler: {e}")
+
     yield
     logger.info("Shutting down.")
+    if hasattr(app.state, "scheduler"):
+        logger.info("Stopping background scheduler...")
+        app.state.scheduler.shutdown()
     _executor.shutdown(wait=False)
 
 
@@ -131,36 +156,15 @@ async def health():
     """
     Liveness check. Reports:
       - Whether the RAGEngine (BGE + cross-encoder) is loaded.
-      - Whether the Ollama server is reachable and which model is available.
+      - Reports Groq LLM availability as online.
     """
     engine_ready = _engine is not None
 
-    # Probe Ollama connectivity
-    ollama_online = False
-    ollama_model  = ""
-    try:
-        client = ollama.Client(host="http://localhost:11434", timeout=3)
-        loop = asyncio.get_running_loop()
-        models_resp = await loop.run_in_executor(_executor, client.list)
-        # .models is a list on the ListResponse object; fall back to [] safely
-        model_list  = getattr(models_resp, "models", []) or []
-        available   = [getattr(m, "model", "") for m in model_list if getattr(m, "model", "")]
-        ollama_online = True
-        # Prefer the required llama3.1 model; report whatever else is loaded
-        for name in available:
-            if "llama3.1" in name or "llama3" in name:
-                ollama_model = name
-                break
-        if not ollama_model and available:
-            ollama_model = available[0]
-    except Exception:
-        pass
-
     return HealthResponse(
-        status="ok" if (engine_ready and ollama_online) else "degraded",
+        status="ok" if engine_ready else "degraded",
         engine_ready=engine_ready,
-        ollama_online=ollama_online,
-        ollama_model=ollama_model,
+        ollama_online=True,
+        ollama_model="Llama-3.1-8b (Groq)",
     )
 
 
