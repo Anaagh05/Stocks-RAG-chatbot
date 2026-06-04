@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY --chown=user:user . .
 
+# Ensure the app and data directory are fully writable by user (UID 1000)
+RUN mkdir -p /home/user/app/data && chown -R user:user /home/user/app
+
 # Expose port 7860
 EXPOSE 7860
 
