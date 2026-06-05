@@ -154,4 +154,4 @@ def run_ingestion() -> dict:
 # ── Entry Point ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     result = run_ingestion()
-    print(f"\n✅ Ingestion complete: {result}")
+    print(f"\n[OK] Ingestion complete: {result}")

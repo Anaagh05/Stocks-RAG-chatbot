@@ -153,7 +153,7 @@ class IncrementalFetcher:
                 "last_fetched": str(date.today()),
             }
 
-            logger.info(f"[SAVED]      {fund_name} → {local_path.name}")
+            logger.info(f"[SAVED]      {fund_name} -> {local_path.name}")
 
             return {
                 "url": url,
