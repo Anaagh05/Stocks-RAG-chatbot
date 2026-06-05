@@ -48,6 +48,9 @@ _ADVISORY_PATTERNS = [
     re.compile(r"\boutperform\b", re.IGNORECASE),
     re.compile(r"\bcompare\s+(sbi|fund|scheme)", re.IGNORECASE),
     re.compile(r"\bvs\.?\s*(sbi|hdfc|icici|axis|kotak)", re.IGNORECASE),
+    re.compile(r"\bi\s+should\s+invest\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+fund\s+(to|should|can)\s+invest\b", re.IGNORECASE),
+    re.compile(r"\bin\s+which\s+fund\b", re.IGNORECASE),
 ]
 
 # Standard refusal message for advisory queries
@@ -58,6 +61,21 @@ ADVISORY_REFUSAL = (
     "factsheets at https://www.sbimf.com. "
     "For investor education, visit the AMFI Investor Education page: "
     "https://www.amfiindia.com/investor-corner"
+)
+
+# ── Step A2: Meta Intent Keywords ──────────────────────────────────────────────
+
+_META_PATTERNS = [
+    re.compile(r"\bhow\s+many\s+funds\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+can\s+you\s+(tell|do)\b", re.IGNORECASE),
+    re.compile(r"\bwho\s+are\s+you\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+funds\s+do\s+you\s+know\b", re.IGNORECASE),
+]
+
+META_RESPONSE = (
+    "I am a facts-only mutual fund FAQ assistant. I have data for 15 SBI Mutual Fund schemes. "
+    "I can answer factual questions about expense ratios, exit loads, minimum SIP amounts, "
+    "benchmark indices, fund managers, and riskometer classifications. I do not provide investment advice."
 )
 
 
@@ -165,6 +183,13 @@ class QueryProcessor:
             logger.info("[QUERY_PROC] Advisory query detected. Short-circuiting to refusal.")
             return result  # Early exit — no retrieval performed
 
+        # ── Step A2: Meta Intent Classification ────────────────────────────────
+        if self._is_meta(scrubbed_query):
+            result.is_advisory = True  # We reuse is_advisory to trigger a short-circuit return
+            result.refusal_message = META_RESPONSE
+            logger.info("[QUERY_PROC] Meta query detected. Short-circuiting to meta response.")
+            return result
+
         # ── Step B: Fund Name Normalization ───────────────────────────────────
         normalized_query, detected_fund = self._normalize_fund_name(scrubbed_query)
         result.cleaned_query = normalized_query
@@ -186,6 +211,11 @@ class QueryProcessor:
     def _is_advisory(query: str) -> bool:
         """Return True if the query matches any advisory intent pattern."""
         return any(pattern.search(query) for pattern in _ADVISORY_PATTERNS)
+
+    @staticmethod
+    def _is_meta(query: str) -> bool:
+        """Return True if the query matches any meta/greeting intent pattern."""
+        return any(pattern.search(query) for pattern in _META_PATTERNS)
 
     # ── Step B internals ───────────────────────────────────────────────────────
 
