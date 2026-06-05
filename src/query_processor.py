@@ -204,12 +204,19 @@ class QueryProcessor:
         for alias in sorted(_FUND_NAME_ALIASES.keys(), key=len, reverse=True):
             if alias in lower_query:
                 canonical = _FUND_NAME_ALIASES[alias]
+                
+                replacement_text = canonical
+                if canonical == "SBI Bluechip Fund":
+                    replacement_text = "SBI Large Cap Fund"
+                elif canonical == "SBI Magnum Midcap Fund":
+                    replacement_text = "SBI Midcap Fund"
+
                 # Replace alias and optional trailing fund/scheme words (case-insensitive)
                 pattern = re.compile(
                     re.escape(alias) + r"\s*(?:funds?|schemes?)?",
                     re.IGNORECASE
                 )
-                normalized = pattern.sub(canonical, query, count=1)
+                normalized = pattern.sub(replacement_text, query, count=1)
                 return normalized, canonical
 
         # Check for exact canonical name presence (user typed the full name correctly)
