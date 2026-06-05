@@ -15,7 +15,7 @@ from src.embedder import Embedder
 
 logger = logging.getLogger(__name__)
 
-TOP_K = 10  # Candidates retrieved from Vector DB
+TOP_K = 50  # Candidates retrieved from Vector DB
 
 # ── Result Dataclass ───────────────────────────────────────────────────────────
 

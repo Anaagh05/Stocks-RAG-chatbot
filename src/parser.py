@@ -220,10 +220,8 @@ class HTMLParser:
             for el in soup.select(selector):
                 el.decompose()
 
-        # Extract text from meaningful content tags
-        content_tags = soup.find_all(["p", "li", "h1", "h2", "h3", "h4", "td", "th"])
-        lines = [tag.get_text(separator=" ", strip=True) for tag in content_tags]
-        raw_text = "\n".join(line for line in lines if line)
+        # Extract text from the remaining body
+        raw_text = soup.body.get_text(separator="\n", strip=True) if soup.body else soup.get_text(separator="\n", strip=True)
 
         cleaned = clean_text(raw_text)
         return {"text": cleaned, "tables": []}

@@ -165,7 +165,7 @@ class RAGEngine:
         reranked: list[RerankedChunk] = self.reranker.rerank(
             query=processed.cleaned_query,
             candidates=candidates,
-            top_k=3,
+            top_k=10,
         )
         response.num_reranked = len(reranked)
 
