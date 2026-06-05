@@ -51,6 +51,8 @@ _ADVISORY_PATTERNS = [
     re.compile(r"\bi\s+should\s+invest\b", re.IGNORECASE),
     re.compile(r"\bwhich\s+fund\s+(to|should|can)\s+invest\b", re.IGNORECASE),
     re.compile(r"\bin\s+which\s+fund\b", re.IGNORECASE),
+    re.compile(r"\bwhich\s+fund.*\binvest\b", re.IGNORECASE),
+    re.compile(r"\bwhere.*\binvest\b", re.IGNORECASE),
 ]
 
 # Standard refusal message for advisory queries
@@ -59,7 +61,7 @@ ADVISORY_REFUSAL = (
     "recommendations, or performance predictions. "
     "For objective factual information, please refer to the official SBI Mutual Fund "
     "factsheets at https://www.sbimf.com. "
-    "For investor education, visit the AMFI Investor Education page: "
+    "For investor Education, visit the AMFI Investor Education page: "
     "https://www.amfiindia.com/investor-corner"
 )
 
@@ -67,9 +69,12 @@ ADVISORY_REFUSAL = (
 
 _META_PATTERNS = [
     re.compile(r"\bhow\s+many\s+funds\b", re.IGNORECASE),
+    re.compile(r"\bhow\s+many.*\bfunds?\b", re.IGNORECASE),
     re.compile(r"\bwhat\s+can\s+you\s+(tell|do)\b", re.IGNORECASE),
     re.compile(r"\bwho\s+are\s+you\b", re.IGNORECASE),
     re.compile(r"\bwhat\s+funds\s+do\s+you\s+know\b", re.IGNORECASE),
+    re.compile(r"\btell\s+me\s+about\s+(the\s+)?funds\b", re.IGNORECASE),
+    re.compile(r"\bwhat\s+do\s+you\s+know\b", re.IGNORECASE),
 ]
 
 META_RESPONSE = (
