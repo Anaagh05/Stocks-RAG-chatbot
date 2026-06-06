@@ -1,5 +1,8 @@
 name: Daily Ingestion
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     # Runs at 10:00 AM IST (Indian Standard Time) which is 04:30 AM UTC
